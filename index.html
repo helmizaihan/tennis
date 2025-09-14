@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tennis Singles Score Tracker</title>
+  <style>
+    :root{--bg:#f6f7f9;--card:#fff;--text:#0f172a;--muted:#6b7280;--accent:#2563eb;--accent-2:#1e40af;--border:#e5e7eb;--good:#16a34a;--bad:#dc2626}
+    *{box-sizing:border-box}
+    body{margin:0;font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--text)}
+    .container{max-width:1100px;margin:32px auto;padding:0 16px}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    h1{font-size:1.5rem;margin:0}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 10px 24px rgba(2,6,23,.05)}
+    .section{padding:18px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    label{font-size:.8rem;color:var(--muted)}
+    input,select,button{font:inherit;padding:10px 12px;border:1px solid var(--border);border-radius:10px;outline:0}
+    input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+    .btn{background:var(--accent);color:#fff;border:none;cursor:pointer;padding:10px 14px;border-radius:12px}
+    .btn-text{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+    .btn-danger{background:var(--bad)}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap}
+    .players-container{display:flex;gap:24px;align-items:flex-start}
+    #playersChips{display:flex;flex-direction:column;gap:8px;min-width:220px}
+    .chip{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:#f9fafb;cursor:pointer}
+    .chip:hover{background:#eef2ff}
+    .pill{padding:4px 8px;border-radius:999px;border:1px solid var(--border);font-size:.8rem;background:#f9fafb}
+    .match-list{display:flex;flex-direction:column;gap:10px}
+    .match-card{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#fff}
+    .score-pill{font-variant-numeric:tabular-nums}
+    table{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid var(--border);border-radius:12px}
+    th,td{padding:10px 8px;text-align:left}
+    thead th{background:#f3f4f6;border-bottom:1px solid var(--border)}
+    tbody tr+tr td{border-top:1px solid var(--border)}
+    .muted{color:var(--muted)}
+    .set-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+
+    @media print{
+      .no-print{display:none!important}
+      body{background:#fff}
+      .card{box-shadow:none;border:none}
+      .section{padding:0}
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🎾 Tennis Singles Score Tracker</h1>
+    <div class="toolbar no-print">
+      <button class="btn" id="printBtn">Save as PDF</button>
+      <button class="btn btn-text" id="exportBtn">Export JSON</button>
+      <input type="file" id="importInput" accept="application/json" style="display:none"/>
+      <button class="btn btn-text" id="importBtn">Import JSON</button>
+      <button class="btn btn-text" id="resetBtn">Reset</button>
+    </div>
+  </header>
+
+  <!-- Event / Venue info (with Date) -->
+  <div class="card section">
+    <h2 style="margin:0 0 10px 0;font-size:1.1rem">Event Info</h2>
+    <div class="row">
+      <div class="field" style="flex:0 1 160px">
+        <label for="eventDate">Date</label>
+        <input id="eventDate" type="date"/>
+      </div>
+      <div class="field" style="flex:1 1 340px">
+        <label for="location">Location</label>
+        <input id="location" type="text" placeholder="e.g., Titiwangsa Tennis Courts, KL"/>
+      </div>
+      <div class="field" style="flex:1 1 340px">
+        <label for="eventName">Event / League</label>
+        <input id="eventName" type="text" placeholder="e.g., Saturday Singles Ladder"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Players first -->
+  <div class="card section">
+    <h2 style="margin:0 0 8px 0;font-size:1.05rem">Players</h2>
+    <div class="players-container">
+      <div style="flex:1 1 320px">
+        <label for="newPlayer">Add player</label>
+        <div class="row">
+          <input id="newPlayer" type="text" placeholder="e.g., Helmi"/>
+          <button class="btn" id="addPlayerBtn">Add</button>
+        </div>
+        <div class="muted" style="margin-top:6px;font-size:.9rem">Click a name on the right to fill Player A/B. If a select is focused, your click fills that one; otherwise it fills the first empty slot.</div>
+      </div>
+      <div id="playersChips"></div>
+    </div>
+  </div>
+
+  <!-- Match input (uses Event Date) -->
+  <div class="card section">
+    <h2 style="margin:0 0 8px 0;font-size:1.05rem">Record Match</h2>
+    <div class="row">
+      <div class="field" style="flex:1 1 200px">
+        <label for="p1">Player A</label>
+        <select id="p1"></select>
+      </div>
+      <div class="field" style="flex:1 1 200px">
+        <label for="p2">Player B</label>
+        <select id="p2"></select>
+      </div>
+      <div class="field" style="flex:0 1 160px">
+        <label for="surface">Surface</label>
+        <select id="surface">
+          <option value="">—</option>
+          <option>Hard</option>
+          <option>Clay</option>
+          <option>Grass</option>
+          <option>Carpet</option>
+        </select>
+      </div>
+      <div class="field" style="flex:0 1 160px">
+        <label for="bestOf">Best of</label>
+        <select id="bestOf">
+          <option value="1">1 (single set)</option>
+          <option value="3" selected>3 sets</option>
+          <option value="5">5 sets</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="setsArea" class="set-grid" style="margin-top:10px"></div>
+
+    <div class="row no-print" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn" id="addMatchBtn">Add Match</button>
+    </div>
+  </div>
+
+  <!-- Matches list -->
+  <div class="card section">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div>
+        <span class="pill">Matches <span id="matchCount" class="muted">0</span></span>
+        <div class="muted" id="eventSummary" style="margin-top:6px"></div>
+      </div>
+      <span class="pill">Ranking auto-updates</span>
+    </div>
+    <div id="matchList" class="match-list" style="margin-top:10px"></div>
+  </div>
+
+  <!-- Ranking -->
+  <div class="card section">
+    <h2 style="margin:0 0 10px 0;font-size:1.1rem">Final Ranking</h2>
+    <table id="rankingTable" aria-describedby="Ranking based on Wins, Set Difference, then Game Difference">
+      <thead>
+        <tr>
+          <th style="width:42px">#</th>
+          <th>Player</th>
+          <th title="Matches">M</th>
+          <th title="Wins">W</th>
+          <th title="Losses">L</th>
+          <th title="Sets Won–Lost">Sets W–L</th>
+          <th title="Games Won–Lost">Games W–L</th>
+          <th title="Win %">Win %</th>
+          <th class="muted">Δ Sets</th>
+          <th class="muted">Δ Games</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+<script>
+  // ===== Utilities =====
+  const $ = (s,e=document)=>e.querySelector(s);
+  const $$ = (s,e=document)=>Array.from(e.querySelectorAll(s));
+  const todayISO = ()=> new Date().toISOString().slice(0,10);
+  const toInt = v => Number.isFinite(+v) ? +v : 0;
+
+  // ===== State =====
+  let players = JSON.parse(localStorage.getItem('players')||'[]');
+  let matches = JSON.parse(localStorage.getItem('matches')||'[]');
+  let eventInfo = JSON.parse(localStorage.getItem('event')||'{"date":"","location":"","eventName":""}');
+  let lastFocused = null; // '#p1' or '#p2'
+
+  function save(){
+    localStorage.setItem('players', JSON.stringify(players));
+    localStorage.setItem('matches', JSON.stringify(matches));
+    localStorage.setItem('event', JSON.stringify(eventInfo));
+  }
+
+  // ===== Players UI =====
+  function populatePlayersUI(){
+    // fill dropdowns
+    const opts = ['<option value="">— Select player —</option>']
+      .concat(players.slice().sort((a,b)=>a.localeCompare(b)).map(p=>`<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`))
+      .join('');
+    $('#p1').innerHTML = opts; $('#p2').innerHTML = opts;
+
+    // chips
+    const wrap = $('#playersChips');
+    wrap.innerHTML = players.slice().sort((a,b)=>a.localeCompare(b)).map(name=>
+      `<button class="chip" data-name="${escapeHTML(name)}" title="Click to fill Player A/B">${escapeHTML(name)}<span class="muted" style="font-size:.75rem">tap to select</span></button>`
+    ).join('');
+  }
+
+  function onChipClick(name){
+    const a = $('#p1'), b = $('#p2');
+    if(lastFocused){
+      const sel = $(lastFocused);
+      setSelectValue(sel,name);
+    } else if(!a.value){
+      setSelectValue(a,name);
+    } else if(!b.value && a.value!==name){
+      setSelectValue(b,name);
+    } else {
+      // both filled or same name picked: put into A
+      setSelectValue(a,name);
+    }
+    renderSetInputs();
+  }
+
+  // ===== Event Info =====
+  function updateEventSummary(){
+    const parts = [];
+    if(eventInfo.eventName) parts.push(escapeHTML(eventInfo.eventName));
+    if(eventInfo.location) parts.push(escapeHTML(eventInfo.location));
+    if(eventInfo.date) parts.push(escapeHTML(eventInfo.date));
+    $('#eventSummary').innerHTML = parts.length ? `📍 ${parts.join(' • ')}` : '';
+  }
+
+  // ===== Sets =====
+  function renderSetInputs(){
+    const area = $('#setsArea');
+    const bestOf = +$('#bestOf').value || 3;
+    const nameA = ($('#p1').value||'A') || 'A';
+    const nameB = ($('#p2').value||'B') || 'B';
+    area.innerHTML = '';
+    for(let i=1;i<=bestOf;i++){
+      const fa = document.createElement('div'); fa.className='field';
+      fa.innerHTML = `<label>Set ${i} – ${escapeHTML(nameA)}</label><input type="number" min="0" placeholder="0" id="s${i}a">`;
+      const fb = document.createElement('div'); fb.className='field';
+      fb.innerHTML = `<label>Set ${i} – ${escapeHTML(nameB)}</label><input type="number" min="0" placeholder="0" id="s${i}b">`;
+      area.appendChild(fa); area.appendChild(fb);
+    }
+  }
+
+  // ===== Matches =====
+  function addMatch(){
+    const p1 = $('#p1').value.trim();
+    const p2 = $('#p2').value.trim();
+    if(!p1 || !p2) return alert('Pick both players');
+    if(p1.toLowerCase()===p2.toLowerCase()) return alert('Players must be different');
+    const bestOf = +$('#bestOf').value || 3;
+    const sets=[]; let sa=0,sb=0;
+    for(let i=1;i<=bestOf;i++){
+      const a = toInt($('#s'+i+'a').value||0), b = toInt($('#s'+i+'b').value||0);
+      if(a===0 && b===0) continue;
+      sets.push({a,b}); if(a>b) sa++; else if(b>a) sb++;
+    }
+    if(sets.length===0) return alert('Enter at least one set');
+    const needed = Math.floor(bestOf/2)+1; // 1 for best-of-1
+    if(sa<needed && sb<needed) return alert('No winner yet');
+
+    const matchDate = eventInfo.date || todayISO();
+    matches.push({date: matchDate, surface: $('#surface').value||'', p1, p2, sets});
+    save();
+    clearForm();
+    refresh();
+  }
+
+  function clearForm(){
+    $('#surface').value = '';
+    // keep chosen bestOf; comment next line if you prefer reset to 3
+    // $('#bestOf').value = '3';
+    $('#p1').value = '';
+    $('#p2').value = '';
+    renderSetInputs();
+  }
+
+  function formatSets(sets){ return sets.map(s=>`${s.a}-${s.b}`).join('  '); }
+
+  function renderMatches(){
+    $('#matchCount').textContent = String(matches.length);
+    const list = $('#matchList'); list.innerHTML = '';
+    matches.forEach((m,idx)=>{
+      const card = document.createElement('div');
+      card.className = 'match-card';
+      card.innerHTML = `
+        <div>
+          <div style="font-weight:600">${escapeHTML(m.p1)} <span class="muted">vs</span> ${escapeHTML(m.p2)}</div>
+          <div class="muted">${m.date||''}${m.surface? ' • '+m.surface:''}${eventInfo.location? ' • '+escapeHTML(eventInfo.location):''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="pill score-pill">${formatSets(m.sets)}</span>
+          <button class="btn btn-text" data-edit="${idx}">Edit</button>
+          <button class="btn btn-danger" data-del="${idx}">🗑</button>
+        </div>`;
+      list.appendChild(card);
+    });
+  }
+
+  function openEditor(index){
+    const m = matches[index];
+    setSelectValue($('#p1'), m.p1); setSelectValue($('#p2'), m.p2);
+    $('#surface').value = m.surface || '';
+    $('#bestOf').value = String(m.sets.length);
+    renderSetInputs();
+    m.sets.forEach((s,i)=>{ $('#s'+(i+1)+'a').value=s.a; $('#s'+(i+1)+'b').value=s.b; });
+    const btn = $('#addMatchBtn');
+    btn.textContent = 'Save Changes';
+    btn.onclick = ()=>{
+      const updated = readMatchFromForm();
+      if(!updated) return;
+      // keep original date when editing
+      updated.date = m.date;
+      matches[index] = updated; save(); clearForm(); refresh();
+      btn.textContent = 'Add Match'; btn.onclick = addMatch;
+    };
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  function readMatchFromForm(){
+    const p1 = $('#p1').value.trim();
+    const p2 = $('#p2').value.trim();
+    if(!p1 || !p2) { alert('Pick both players'); return null; }
+    if(p1.toLowerCase()===p2.toLowerCase()){ alert('Players must be different'); return null; }
+    const bestOf = +$('#bestOf').value || 3;
+    const sets=[]; let sa=0,sb=0;
+    for(let i=1;i<=bestOf;i++){
+      const a = toInt($('#s'+i+'a').value||0), b = toInt($('#s'+i+'b').value||0);
+      if(a===0 && b===0) continue;
+      sets.push({a,b}); if(a>b) sa++; else if(b>a) sb++;
+    }
+    if(sets.length===0){ alert('Enter at least one set'); return null; }
+    const needed = Math.floor(bestOf/2)+1;
+    if(sa<needed && sb<needed){ alert('No winner yet'); return null; }
+    return {date: eventInfo.date || todayISO(), surface: $('#surface').value||'', p1, p2, sets};
+  }
+
+  // ===== Ranking =====
+  function computeRanking(){
+    const stats = new Map();
+    const ensure = name => { if(!stats.has(name)) stats.set(name,{player:name,matches:0,wins:0,losses:0,setsW:0,setsL:0,gamesW:0,gamesL:0}); return stats.get(name); };
+
+    for(const m of matches){
+      let setsA=0, setsB=0, gamesA=0, gamesB=0;
+      for(const s of m.sets){
+        const sa = toInt(s.a), sb = toInt(s.b);
+        if(sa===0 && sb===0) continue;
+        gamesA+=sa; gamesB+=sb; if(sa>sb) setsA++; else if(sb>sa) setsB++;
+      }
+      const a = ensure(m.p1), b = ensure(m.p2);
+      if(setsA===0 && setsB===0) continue; // ignore empty
+      a.matches++; b.matches++;
+      a.setsW+=setsA; a.setsL+=setsB; b.setsW+=setsB; b.setsL+=setsA;
+      a.gamesW+=gamesA; a.gamesL+=gamesB; b.gamesW+=gamesB; b.gamesL+=gamesA;
+      if(setsA>setsB){ a.wins++; b.losses++; } else if(setsB>setsA){ b.wins++; a.losses++; }
+    }
+
+    const arr = Array.from(stats.values());
+    arr.sort((x,y)=>{
+      if(y.wins!==x.wins) return y.wins-x.wins;
+      const xSD=x.setsW-x.setsL, ySD=y.setsW-y.setsL; if(ySD!==xSD) return ySD-xSD;
+      const xGD=x.gamesW-x.gamesL, yGD=y.gamesW-y.gamesL; if(yGD!==xGD) return yGD-xGD;
+      return x.player.localeCompare(y.player);
+    });
+
+    const tbody = $('#rankingTable tbody');
+    tbody.innerHTML = arr.map((r,i)=>`
+      <tr>
+        <td>${i+1}</td>
+        <td>${escapeHTML(r.player)}</td>
+        <td>${r.matches}</td>
+        <td><b style="color:var(--good)">${r.wins}</b></td>
+        <td><b style="color:var(--bad)">${r.losses}</b></td>
+        <td>${r.setsW}–${r.setsL}</td>
+        <td>${r.gamesW}–${r.gamesL}</td>
+        <td>${r.matches? ((r.wins/r.matches)*100).toFixed(0):0}%</td>
+        <td class="muted">${r.setsW-r.setsL}</td>
+        <td class="muted">${r.gamesW-r.gamesL}</td>
+      </tr>`).join('');
+  }
+
+  // ===== Helpers =====
+  function setSelectValue(sel, value){ sel.value = value || ''; if(sel.value !== (value||'')) sel.value = ''; }
+  function escapeHTML(str){ return (str||'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])); }
+
+  function refresh(){
+    // sync event
+    eventInfo.date = $('#eventDate').value||'';
+    eventInfo.location = $('#location').value||'';
+    eventInfo.eventName = $('#eventName').value||'';
+    save();
+    renderMatches();
+    computeRanking();
+    updateEventSummary();
+    populatePlayersUI();
+  }
+
+  // ===== Listeners =====
+  document.addEventListener('click', (e)=>{
+    const chip = e.target.closest('.chip');
+    if(chip){ onChipClick(chip.getAttribute('data-name')); }
+    if(e.target.matches('[data-del]')){
+      const i = +e.target.getAttribute('data-del');
+      if(Number.isInteger(i) && confirm('Delete this match?')){ matches.splice(i,1); save(); refresh(); }
+    }
+    if(e.target.matches('[data-edit]')){
+      const i = +e.target.getAttribute('data-edit');
+      if(Number.isInteger(i)) openEditor(i);
+    }
+  });
+  $('#addPlayerBtn').addEventListener('click', ()=>{
+    const n = $('#newPlayer').value.trim();
+    if(!n) return;
+    if(players.map(x=>x.toLowerCase()).includes(n.toLowerCase())){ alert('Player already exists'); return; }
+    players.push(n); $('#newPlayer').value=''; save(); populatePlayersUI();
+  });
+  $('#p1').addEventListener('focus', ()=> lastFocused = '#p1');
+  $('#p2').addEventListener('focus', ()=> lastFocused = '#p2');
+  $('#p1').addEventListener('change', renderSetInputs);
+  $('#p2').addEventListener('change', renderSetInputs);
+  $('#bestOf').addEventListener('change', renderSetInputs);
+  $('#addMatchBtn').addEventListener('click', addMatch);
+  $('#printBtn').addEventListener('click', ()=> window.print());
+  $('#exportBtn').addEventListener('click', ()=>{
+    const data = {players, matches, event:eventInfo};
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tennis-tracker-'+todayISO()+'.json'; a.click();
+  });
+  $('#importBtn').addEventListener('click', ()=> $('#importInput').click());
+  $('#importInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader(); reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        if(Array.isArray(data)) { matches = data; }
+        else if(data && typeof data==='object'){
+          if(Array.isArray(data.players)) players = data.players;
+          if(Array.isArray(data.matches)) matches = data.matches;
+          if(data.event) eventInfo = Object.assign({date:'',location:'',eventName:''}, data.event);
+        }
+        save(); initUIFromState(); refresh();
+      }catch{ alert('Invalid JSON'); }
+    }; reader.readAsText(file); e.target.value='';
+  });
+  $('#resetBtn').addEventListener('click', ()=>{
+    if(confirm('Clear all data?')){ players=[]; matches=[]; eventInfo={date:'',location:'',eventName:''}; save(); initUIFromState(); refresh(); }
+  });
+
+  // ===== Init =====
+  function initUIFromState(){
+    $('#eventDate').value = eventInfo.date || todayISO();
+    $('#location').value = eventInfo.location||'';
+    $('#eventName').value = eventInfo.eventName||'';
+    populatePlayersUI();
+    renderSetInputs();
+  }
+
+  initUIFromState();
+  refresh();
+</script>
+</body>
+</html>
